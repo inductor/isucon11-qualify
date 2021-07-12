@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/isucon/isucandar"
@@ -19,7 +18,7 @@ import (
 
 func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) error {
 	defer s.jiaChancel()
-	step.Result().Score.Reset()
+	//step.Result().Score.Reset()
 	if s.NoLoad {
 		return nil
 	}
@@ -36,11 +35,11 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 	*/
 
 	//通常ユーザー
-	s.AddNormalUser(ctx, step, 10)
+	s.AddNormalUser(ctx, step, 100)
 	//マニアユーザー
 	s.AddManiacUser(ctx, step, 2)
 	//企業ユーザー
-	s.AddCompanyUser(ctx, step, 1)
+	s.AddCompanyUser(ctx, step, 10)
 
 	//ユーザーを増やす
 	s.loadWaitGroup.Add(1)
@@ -49,44 +48,20 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 		defer logger.AdminLogger.Println("--- User Adder Thread END")
 		//TODO: パラメーター調整
 		for {
-			timer := time.After(500 * time.Millisecond)
-			scoreRaw := step.Result().Score.Sum()
-			if len(step.Result().Errors.All()) > int(scoreRaw/10000) {
-				select {
-				case <-timer:
-				case <-ctx.Done():
-					return
-				}
-				continue
-			}
-
-			var normalUserLen int
-			func() {
-				s.normalUsersMtx.Lock()
-				defer s.normalUsersMtx.Unlock()
-				normalUserLen = len(s.normalUsers)
-			}()
-			normalUserAdd := int(scoreRaw/1000) - normalUserLen
-			if 0 < normalUserAdd {
-				s.AddNormalUser(ctx, step, normalUserAdd)
-			}
-
-			//TODO: マニアユーザー
-
-			var companyUserLen int
-			func() {
-				s.companyUsersMtx.Lock()
-				defer s.companyUsersMtx.Unlock()
-				companyUserLen = len(s.companyUsers)
-			}()
-			companyUserAdd := int(scoreRaw/20000) - companyUserLen
-			if 0 < companyUserAdd {
-				s.AddCompanyUser(ctx, step, companyUserAdd)
-			}
-
 			select {
-			case <-timer:
+			case <-time.After(5000 * time.Millisecond):
 			case <-ctx.Done():
+				return
+			}
+
+			errCount := step.Result().Errors.Count()
+			timeCount, ok := errCount["timeout"]
+			if ok && timeCount == 0 {
+				logger.ContestantLogger.Println("エラーが無かったため負荷レベルを上昇させます")
+				s.AddNormalUser(ctx, step, 10)
+				s.AddCompanyUser(ctx, step, 1)
+			} else if !ok {
+				logger.ContestantLogger.Println("エラーが発生したため負荷レベルは上昇しません")
 				return
 			}
 		}
@@ -155,22 +130,6 @@ scenarioLoop:
 		case <-ctx.Done():
 			return
 		default:
-		}
-
-		deleteCount := atomic.SwapInt32(&s.ScenarioNormalUserDeleteCount, 0)
-		if deleteCount > 0 {
-			atomic.AddInt32(&s.ScenarioNormalUserDeleteCount, deleteCount-1)
-			for _, isu := range user.IsuListOrderByCreatedAt {
-				select {
-				case isu.StreamsForScenario.StateChan <- model.IsuStateChangeDelete:
-				case <-ctx.Done():
-					return
-				}
-			}
-			for _, isu := range user.IsuListOrderByCreatedAt {
-				deleteIsuAction(ctx, user.Agent, isu.JIAIsuUUID)
-			}
-			return
 		}
 
 		if scenarioSuccess {
@@ -502,18 +461,6 @@ scenarioLoop:
 		case <-ctx.Done():
 			return
 		default:
-		}
-
-		deleteCount := atomic.SwapInt32(&s.ScenarioCompanyUserDeleteCount, 0)
-		if deleteCount > 0 {
-			atomic.AddInt32(&s.ScenarioCompanyUserDeleteCount, deleteCount-1)
-			for _, isu := range user.IsuListOrderByCreatedAt {
-				isu.StreamsForScenario.StateChan <- model.IsuStateChangeDelete
-			}
-			for _, isu := range user.IsuListOrderByCreatedAt {
-				deleteIsuAction(ctx, user.Agent, isu.JIAIsuUUID)
-			}
-			return
 		}
 
 		if scenarioSuccess {
