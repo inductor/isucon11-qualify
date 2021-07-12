@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/isucon/isucandar"
@@ -22,9 +23,9 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 	if s.NoLoad {
 		return nil
 	}
-	// ctx, cancel := context.WithTimeout(parent, 60*time.Second) //mainで指定している方を見るべき
-	// defer cancel()
-	ctx := parent
+	ctx, cancel := context.WithTimeout(parent, 60*time.Second) //mainで指定している方を見るべき
+	defer cancel()
+	//ctx := parent
 
 	logger.ContestantLogger.Printf("===> LOAD")
 	logger.AdminLogger.Printf("LOAD INFO\n  Language: %s\n  Campaign: None\n", s.Language)
@@ -48,8 +49,16 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 		defer logger.AdminLogger.Println("--- User Adder Thread END")
 		//TODO: パラメーター調整
 		for {
-			timer := time.After(3 * time.Second)
+			timer := time.After(500 * time.Millisecond)
 			scoreRaw := step.Result().Score.Sum()
+			if len(step.Result().Errors.All()) > int(scoreRaw/10000) {
+				select {
+				case <-timer:
+				case <-ctx.Done():
+					return
+				}
+				continue
+			}
 
 			var normalUserLen int
 			func() {
@@ -57,7 +66,7 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 				defer s.normalUsersMtx.Unlock()
 				normalUserLen = len(s.normalUsers)
 			}()
-			normalUserAdd := int(scoreRaw/100) - normalUserLen
+			normalUserAdd := int(scoreRaw/1000) - normalUserLen
 			if 0 < normalUserAdd {
 				s.AddNormalUser(ctx, step, normalUserAdd)
 			}
@@ -70,7 +79,7 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 				defer s.companyUsersMtx.Unlock()
 				companyUserLen = len(s.companyUsers)
 			}()
-			companyUserAdd := int(scoreRaw/2000) - companyUserLen
+			companyUserAdd := int(scoreRaw/20000) - companyUserLen
 			if 0 < companyUserAdd {
 				s.AddCompanyUser(ctx, step, companyUserAdd)
 			}
@@ -147,6 +156,23 @@ scenarioLoop:
 			return
 		default:
 		}
+
+		deleteCount := atomic.SwapInt32(&s.ScenarioNormalUserDeleteCount, 0)
+		if deleteCount > 0 {
+			atomic.AddInt32(&s.ScenarioNormalUserDeleteCount, deleteCount-1)
+			for _, isu := range user.IsuListOrderByCreatedAt {
+				select {
+				case isu.StreamsForScenario.StateChan <- model.IsuStateChangeDelete:
+				case <-ctx.Done():
+					return
+				}
+			}
+			for _, isu := range user.IsuListOrderByCreatedAt {
+				deleteIsuAction(ctx, user.Agent, isu.JIAIsuUUID)
+			}
+			return
+		}
+
 		if scenarioSuccess {
 			scenarioDoneCount++
 			step.AddScore(ScoreNormalUserLoop) //TODO: 得点条件の修正
@@ -427,8 +453,8 @@ func (s *Scenario) loadCompanyUser(ctx context.Context, step *isucandar.Benchmar
 		return
 	default:
 	}
-	logger.AdminLogger.Println("Company User start")
-	defer logger.AdminLogger.Println("Company User END")
+	//logger.AdminLogger.Println("Company User start")
+	//defer logger.AdminLogger.Println("Company User END")
 
 	//ユーザー作成
 	userAgent, err := s.NewAgent()
@@ -476,6 +502,18 @@ scenarioLoop:
 		case <-ctx.Done():
 			return
 		default:
+		}
+
+		deleteCount := atomic.SwapInt32(&s.ScenarioCompanyUserDeleteCount, 0)
+		if deleteCount > 0 {
+			atomic.AddInt32(&s.ScenarioCompanyUserDeleteCount, deleteCount-1)
+			for _, isu := range user.IsuListOrderByCreatedAt {
+				isu.StreamsForScenario.StateChan <- model.IsuStateChangeDelete
+			}
+			for _, isu := range user.IsuListOrderByCreatedAt {
+				deleteIsuAction(ctx, user.Agent, isu.JIAIsuUUID)
+			}
+			return
 		}
 
 		if scenarioSuccess {

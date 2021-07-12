@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/isucon/isucandar"
@@ -34,8 +35,10 @@ type Scenario struct {
 	// 競技者の実装言語
 	Language string
 
-	loadWaitGroup sync.WaitGroup
-	jiaChancel    context.CancelFunc
+	loadWaitGroup                  sync.WaitGroup
+	jiaChancel                     context.CancelFunc
+	ScenarioNormalUserDeleteCount  int32 //TODO: localにする
+	ScenarioCompanyUserDeleteCount int32 //TODO: localにする
 
 	//内部状態
 	normalUsersMtx  sync.Mutex
@@ -72,6 +75,22 @@ func (s *Scenario) ToVirtualTime(realTime time.Time) time.Time {
 	return s.virtualTimeStart.Add(realTime.Sub(s.realTimeStart) * s.virtualTimeMulti)
 }
 
+var countUsers int32
+
+func init() {
+	go func() {
+		for {
+			// 途中経過を3秒毎に送信
+			timer := time.After(3 * time.Second)
+			//sendResult(s, step.Result(), false)//TODO:
+
+			<-timer
+			logger.AdminLogger.Printf("countUsers: %v\n", atomic.LoadInt32(&countUsers))
+		}
+
+	}()
+}
+
 //load用
 //通常ユーザーのシナリオスレッドを追加する
 func (s *Scenario) AddNormalUser(ctx context.Context, step *isucandar.BenchmarkStep, count int) {
@@ -80,8 +99,10 @@ func (s *Scenario) AddNormalUser(ctx context.Context, step *isucandar.BenchmarkS
 	}
 	s.loadWaitGroup.Add(int(count))
 	for i := 0; i < count; i++ {
+		atomic.AddInt32(&countUsers, +1)
 		go func(ctx context.Context, step *isucandar.BenchmarkStep) {
 			defer s.loadWaitGroup.Done()
+			defer atomic.AddInt32(&countUsers, -1)
 			s.loadNormalUser(ctx, step)
 		}(ctx, step)
 	}
@@ -95,8 +116,10 @@ func (s *Scenario) AddManiacUser(ctx context.Context, step *isucandar.BenchmarkS
 	}
 	s.loadWaitGroup.Add(int(count))
 	for i := 0; i < count; i++ {
+		atomic.AddInt32(&countUsers, +1)
 		go func(ctx context.Context, step *isucandar.BenchmarkStep) {
 			defer s.loadWaitGroup.Done()
+			defer atomic.AddInt32(&countUsers, -1)
 			//s.loadManiacUser(ctx, step) //TODO:
 		}(ctx, step)
 	}
@@ -110,8 +133,10 @@ func (s *Scenario) AddCompanyUser(ctx context.Context, step *isucandar.Benchmark
 	}
 	s.loadWaitGroup.Add(int(count))
 	for i := 0; i < count; i++ {
+		atomic.AddInt32(&countUsers, +1)
 		go func(ctx context.Context, step *isucandar.BenchmarkStep) {
 			defer s.loadWaitGroup.Done()
+			defer atomic.AddInt32(&countUsers, -1)
 			s.loadCompanyUser(ctx, step)
 		}(ctx, step)
 	}

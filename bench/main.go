@@ -11,6 +11,7 @@ import (
 	"runtime/pprof"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/isucon/isucandar"
@@ -172,7 +173,7 @@ func sendResult(s *scenario.Scenario, result *isucandar.BenchmarkResult, finish 
 		}
 	*/
 	// TODO: 以下は消す
-	fmt.Println(reason)
+	logger.ContestantLogger.Println(reason)
 
 	return passed
 }
@@ -230,7 +231,8 @@ func main() {
 	s.BaseURL = fmt.Sprintf("%s://%s/", scheme, targetAddress)
 	s.NoLoad = noLoad
 
-	b, err := isucandar.NewBenchmark(isucandar.WithLoadTimeout(60*time.Second), isucandar.WithoutPanicRecover())
+	//b, err := isucandar.NewBenchmark(isucandar.WithLoadTimeout(70*time.Second), isucandar.WithoutPanicRecover())
+	b, err := isucandar.NewBenchmark(isucandar.WithoutPanicRecover())
 	if err != nil {
 		panic(err)
 	}
@@ -245,6 +247,10 @@ func main() {
 
 	//errorCount := int64(0)
 	b.OnError(func(err error, step *isucandar.BenchmarkStep) {
+		//失敗があった
+		atomic.AddInt32(&s.ScenarioNormalUserDeleteCount, 4)
+		atomic.AddInt32(&s.ScenarioCompanyUserDeleteCount, 1)
+
 		// Load 中の timeout のみログから除外
 		if failure.IsCode(err, failure.TimeoutErrorCode) && failure.IsCode(err, isucandar.ErrLoad) {
 			return
@@ -257,16 +263,19 @@ func main() {
 		//	step.Cancel()
 		//}
 
-		logger.ContestantLogger.Printf("ERR: %v", err)
+		logger.ContestantLogger.Printf("ERR: %v", err) //TODO:
 	})
 
 	b.AddScenario(s)
 
 	wg := sync.WaitGroup{}
-	b.Load(func(ctx context.Context, step *isucandar.BenchmarkStep) error {
+	b.Load(func(parent context.Context, step *isucandar.BenchmarkStep) error {
 		if s.NoLoad {
 			return nil
 		}
+		ctx, cancel := context.WithTimeout(parent, 60*time.Second)
+		defer cancel()
+		//ctx := parent
 
 		wg.Add(1)
 		defer wg.Done()

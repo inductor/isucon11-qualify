@@ -178,6 +178,46 @@ func verifyIsuConditions(res *http.Response,
 				//反映されていないことが許可されているので、無視して良い
 				continue
 			}
+
+			DEBUG_STR := ""
+			if targetIsuUUID != "" {
+				//TODO:
+				targetIsu := targetUser.IsuListByID[targetIsuUUID]
+				//iterTmpAAA := targetIsu.Conditions.LowerBound(filter, int64(request.CursorEndTime), request.CursorJIAIsuUUID)
+				iterTmpAAA := targetIsu.Conditions.End(filter)
+				cc := iterTmpAAA.Prev()
+				count := 0
+				for cc != nil {
+					count++
+					if 900 < count {
+						break
+					}
+					DEBUG_STR += fmt.Sprintf("%v\n", cc)
+					cc = iterTmpAAA.Prev()
+				}
+			} else {
+				//TODO:
+				//iterTmpAAA := targetUser.Conditions.LowerBound(filter, int64(request.CursorEndTime), request.CursorJIAIsuUUID)
+				iterTmpAAA := targetUser.Conditions.End(filter)
+				cc := iterTmpAAA.Prev()
+				count := 0
+				for cc != nil {
+					count++
+					if 900 < count {
+						break
+					}
+					DEBUG_STR += fmt.Sprintf("%v\n", cc)
+					cc = iterTmpAAA.Prev()
+				}
+			}
+			DEBUG_STR += fmt.Sprintf("\nbackendData\n")
+			for _, cc := range backendData {
+				DEBUG_STR += fmt.Sprintf("%v\n", cc)
+			}
+			DEBUG_STR += fmt.Sprintf("%v vs\n%v\n", c, expected)
+			DEBUG_STR += fmt.Sprintf("cursor=%v\n", request)
+			//logger.AdminLogger.Output(2, fmt.Sprint(DEBUG_STR))
+			//logger.AdminLogger.Panic()
 			return errorMissmatch(res, "データが正しくありません")
 		}
 
@@ -212,6 +252,47 @@ func verifyIsuConditions(res *http.Response,
 			c.JIAIsuUUID != expected.OwnerID ||
 			c.Message != expected.Message ||
 			c.IsuName != targetUser.IsuListByID[c.JIAIsuUUID].Name {
+
+			DEBUG_STR := ""
+			if targetIsuUUID != "" {
+				//TODO:
+				targetIsu := targetUser.IsuListByID[targetIsuUUID]
+				//iterTmpAAA := targetIsu.Conditions.LowerBound(filter, int64(request.CursorEndTime), request.CursorJIAIsuUUID)
+				iterTmpAAA := targetIsu.Conditions.End(filter)
+				cc := iterTmpAAA.Prev()
+				count := 0
+				for cc != nil {
+					count++
+					if 900 < count {
+						break
+					}
+					DEBUG_STR += fmt.Sprintf("%v\n", cc)
+					cc = iterTmpAAA.Prev()
+				}
+			} else {
+				//TODO:
+				//iterTmpAAA := targetUser.Conditions.LowerBound(filter, int64(request.CursorEndTime), request.CursorJIAIsuUUID)
+				iterTmpAAA := targetUser.Conditions.End(filter)
+				cc := iterTmpAAA.Prev()
+				count := 0
+				for cc != nil {
+					count++
+					if 900 < count {
+						break
+					}
+					DEBUG_STR += fmt.Sprintf("%v\n", cc)
+					cc = iterTmpAAA.Prev()
+				}
+			}
+			DEBUG_STR += fmt.Sprintf("\nbackendData\n")
+			for _, cc := range backendData {
+				DEBUG_STR += fmt.Sprintf("%v\n", cc)
+			}
+			DEBUG_STR += fmt.Sprintf("%v vs\n%v\n", c, expected)
+			DEBUG_STR += fmt.Sprintf("cursor=%v\n", request)
+			//logger.AdminLogger.Output(2, fmt.Sprint(DEBUG_STR))
+			//logger.AdminLogger.Panic()
+
 			return errorMissmatch(res, "データが正しくありません")
 		}
 

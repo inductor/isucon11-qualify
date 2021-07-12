@@ -62,6 +62,7 @@ func (s *Scenario) keepPosting(ctx context.Context, step *isucandar.BenchmarkSte
 
 	//TODO: 頻度はちゃんと検討して変える
 	timer := time.NewTicker(PostInterval * PostContentNum / s.virtualTimeMulti)
+	errorCount := 0
 	defer timer.Stop()
 	for {
 		select {
@@ -126,7 +127,14 @@ func (s *Scenario) keepPosting(ctx context.Context, step *isucandar.BenchmarkSte
 			bytes.NewBuffer(conditionByte),
 		)
 		if err != nil {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			step.AddError(failure.NewError(ErrHTTP, err))
+			errorCount++
+			timer.Reset(time.Duration(errorCount*3) * PostInterval * PostContentNum / s.virtualTimeMulti)
 			continue // goto next loop
 		}
 		func() {
@@ -134,6 +142,11 @@ func (s *Scenario) keepPosting(ctx context.Context, step *isucandar.BenchmarkSte
 
 			err = verifyStatusCode(res, http.StatusCreated)
 			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 				step.AddError(err)
 				return // goto next loop
 			}
