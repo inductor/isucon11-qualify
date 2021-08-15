@@ -62,6 +62,7 @@ func (t *timeAverage) Get() int64 {
 }
 
 var (
+	viewerTime    = timeAverage{}
 	conditionTime = timeAverage{}
 	repairTime    = timeAverage{}
 	graphTime     = timeAverage{}
@@ -128,7 +129,7 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 	go func() {
 		for {
 			time.Sleep(3 * time.Second)
-			logger.AdminLogger.Printf("TIME:\ncondition: %v, repair: %v, graph: %v", conditionTime.Get(), repairTime.Get(), graphTime.Get())
+			logger.AdminLogger.Printf("TIME:\ncondition: %v, repair: %v, graph: %v, viewer: %v", conditionTime.Get(), repairTime.Get(), graphTime.Get(), viewerTime.Get())
 		}
 	}()
 
@@ -339,6 +340,7 @@ func (s *Scenario) loadViewer(ctx context.Context, step *isucandar.BenchmarkStep
 			return
 		default:
 		}
+		LOOPSTART := time.Now()
 
 		// viewer が ViewerDropCount 以上エラーに遭遇していたらループから脱落
 		if viewer.ErrorCount >= ViewerDropCount {
@@ -360,6 +362,8 @@ func (s *Scenario) loadViewer(ctx context.Context, step *isucandar.BenchmarkStep
 			continue
 		}
 		atomic.AddInt32(&viewUpdatedTrendCounter, int32(updatedCount))
+
+		viewerTime.Add(time.Since(LOOPSTART).Milliseconds())
 	}
 }
 
