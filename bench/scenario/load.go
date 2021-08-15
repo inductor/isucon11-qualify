@@ -43,6 +43,30 @@ type ReadConditionCount struct {
 	Critical int32
 }
 
+type timeAverage struct {
+	nowsum int64
+	nownum int64
+	mutex  sync.Mutex
+}
+
+func (t *timeAverage) Add(time int64) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.nowsum += time
+	t.nownum++
+}
+func (t *timeAverage) Get() int64 {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.nowsum / t.nownum
+}
+
+var (
+	conditionTime = timeAverage{}
+	repairTime    = timeAverage{}
+	graphTime     = timeAverage{}
+)
+
 func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) error {
 	step.Result().Score.Reset()
 	if s.NoLoad {
@@ -98,6 +122,14 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 		defer s.loadWaitGroup.Done()
 		//TODO: DEBUG
 		//s.loadErrorCheck(ctx, step)
+	}()
+
+	//TODO: DEBUG
+	go func() {
+		for {
+			time.Sleep(3 * time.Second)
+			logger.AdminLogger.Printf("TIME:\ncondition: %v, repair: %v, graph: %v", conditionTime.Get(), repairTime.Get(), graphTime.Get())
+		}
 	}()
 
 	<-ctx.Done()
@@ -187,6 +219,7 @@ func (s *Scenario) loadNormalUser(ctx context.Context, step *isucandar.Benchmark
 			return
 		default:
 		}
+		LOOPSTART := time.Now()
 
 		// 一つのISUに対するシナリオが終わっているとき
 		if nextScenarioIndex > 2 {
@@ -264,10 +297,14 @@ func (s *Scenario) loadNormalUser(ctx context.Context, step *isucandar.Benchmark
 		var isSuccess bool
 		if nextScenarioIndex == 0 {
 			isSuccess = s.requestNewConditionScenario(ctx, step, user, targetIsu, &readConditionCount)
+
+			conditionTime.Add(time.Since(LOOPSTART).Milliseconds())
 		} else if nextScenarioIndex == 1 {
 			isSuccess = s.requestLastBadConditionScenario(ctx, step, user, targetIsu)
+			repairTime.Add(time.Since(LOOPSTART).Milliseconds())
 		} else {
 			isSuccess = s.requestGraphScenario(ctx, step, user, targetIsu, randEngine)
+			graphTime.Add(time.Since(LOOPSTART).Milliseconds())
 		}
 
 		// たまに signoutScenario に入る
