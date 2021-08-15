@@ -742,10 +742,11 @@ func (s *Scenario) verifyTrend(
 			}
 		}
 	}
+	//TODO: DEBUG
 	// characterSet の検証
-	if !characterSet.IsFull() {
-		return 0, errorInvalid(res, "全ての性格のトレンドが取得できていません")
-	}
+	// if !characterSet.IsFull() {
+	// 	return 0, errorInvalid(res, "全ての性格のトレンドが取得できていません")
+	// }
 	// trend のレスポンスに入っている ISU の数が expected な数以上あることの検証
 	if !(len(isuIDSet) >= previousConditionNum) {
 		return 0, errorInvalid(res, "ISU の個数が不足しています")
