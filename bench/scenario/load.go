@@ -90,7 +90,7 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 	// 実際の負荷走行シナリオ
 
 	//通常ユーザー
-	s.AddNormalUser(ctx, step, 1)
+	s.AddNormalUser(ctx, step, 6)
 	s.AddIsuconUser(ctx, step)
 
 	//非ログインユーザーを増やす
