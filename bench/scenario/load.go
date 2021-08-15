@@ -96,7 +96,8 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 	s.loadWaitGroup.Add(1)
 	go func() {
 		defer s.loadWaitGroup.Done()
-		s.loadErrorCheck(ctx, step)
+		//TODO: DEBUG
+		//s.loadErrorCheck(ctx, step)
 	}()
 
 	<-ctx.Done()

@@ -81,9 +81,10 @@ func (s *Scenario) Prepare(ctx context.Context, step *isucandar.BenchmarkStep) e
 	<-jiaWait
 
 	// prepareチェックの実行
-	if err := s.prepareCheck(ctx, step); err != nil {
-		return err
-	}
+	//TODO: DEBUG
+	// if err := s.prepareCheck(ctx, step); err != nil {
+	// 	return err
+	// }
 
 	errors := step.Result().Errors
 	hasErrors := func() bool {

@@ -14,6 +14,8 @@ import (
 )
 
 func (s *Scenario) InitializeData(ctx context.Context) {
+	//TODO: DEBUG
+	return
 	raw, err := ioutil.ReadFile("./data/initialize.json")
 	if err != nil {
 		logger.AdminLogger.Panicln(fmt.Errorf("初期データファイルの読み込みに失敗しました: %v", err))
