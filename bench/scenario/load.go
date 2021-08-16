@@ -340,7 +340,7 @@ func (s *Scenario) loadViewer(ctx context.Context, step *isucandar.BenchmarkStep
 	scenarioLoopStopper := time.After(1 * time.Millisecond) //ループ頻度調整
 	for {
 		<-scenarioLoopStopper
-		scenarioLoopStopper = time.After(10 * time.Millisecond)
+		scenarioLoopStopper = time.After(100 * time.Millisecond)
 
 		select {
 		case <-ctx.Done():
