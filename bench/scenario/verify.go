@@ -518,9 +518,9 @@ func errorChecksum(base string, resource *agent.Resource, path string) error {
 	res := resource.Response
 	defer res.Body.Close()
 	//前回の取得が成功している保証が無い為
-	// if res.StatusCode == http.StatusNotModified {
-	// 	return nil
-	// }
+	if res.StatusCode == http.StatusNotModified {
+		return nil //TODO: DEBUG
+	}
 
 	if err := verifyStatusCodes(res, []int{http.StatusOK, http.StatusNotModified}); err != nil {
 		return err
