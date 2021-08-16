@@ -58,6 +58,9 @@ func (t *timeAverage) Add(time int64) {
 func (t *timeAverage) Get() int64 {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+	if t.nownum == 0 {
+		return -1
+	}
 	return t.nowsum / t.nownum
 }
 
