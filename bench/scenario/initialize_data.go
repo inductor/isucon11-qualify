@@ -28,6 +28,7 @@ func (s *Scenario) InitializeData(ctx context.Context) {
 
 	for i, _ := range users {
 		user := users[i]
+
 		//var userConditions []model.IsuCondition
 
 		for key, _ := range user.IsuListByID {

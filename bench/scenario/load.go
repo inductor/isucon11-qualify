@@ -352,10 +352,12 @@ func (s *Scenario) loadViewer(ctx context.Context, step *isucandar.BenchmarkStep
 		}
 
 		requestTime := time.Now()
-		trend, res, err := browserGetLandingPageAction(ctx, viewer.Agent)
-		if err != nil {
+		trend, res, errs := browserGetLandingPageAction(ctx, &viewer)
+		if len(errs) != 0 {
 			viewer.ErrorCount += 1
-			addErrorWithContext(ctx, step, err)
+			for _, err := range errs {
+				addErrorWithContext(ctx, step, err)
+			}
 			continue
 		}
 		updatedCount, err := s.verifyTrend(ctx, res, viewer, trend, requestTime)
@@ -491,11 +493,13 @@ func (s *Scenario) requestLastBadConditionScenario(ctx context.Context, step *is
 		EndTime:        nowVirtualTime.Unix(),
 		ConditionLevel: "warning,critical",
 	}
+
+	requestTimeUnix := time.Now().Unix()
 	// GET condition/{jia_isu_uuid} を取得してバリデーション
 	conditions, errs := browserGetIsuConditionAction(ctx, user.Agent, targetIsu.JIAIsuUUID,
 		request,
 		func(res *http.Response, conditions []*service.GetIsuConditionResponse) []error {
-			err := verifyIsuConditions(res, user, targetIsu.JIAIsuUUID, &request, conditions, targetIsu.LastReadBadConditionTimestamps)
+			err := verifyIsuConditions(res, user, targetIsu.JIAIsuUUID, &request, conditions, targetIsu.LastReadBadConditionTimestamps, requestTimeUnix)
 			if err != nil {
 				return []error{err}
 			}
@@ -570,11 +574,12 @@ func (s *Scenario) getIsuConditionUntilAlreadyRead(
 	// 今回のこの関数で取得した condition の配列
 	conditions := []*service.GetIsuConditionResponse{}
 
+	requestTimeUnix := time.Now().Unix()
 	// GET condition/{jia_isu_uuid} を取得してバリデーション
 	firstPageConditions, errs := browserGetIsuConditionAction(ctx, user.Agent, targetIsu.JIAIsuUUID,
 		request,
 		func(res *http.Response, conditions []*service.GetIsuConditionResponse) []error {
-			err := verifyIsuConditions(res, user, targetIsu.JIAIsuUUID, &request, conditions, targetIsu.LastReadConditionTimestamps)
+			err := verifyIsuConditions(res, user, targetIsu.JIAIsuUUID, &request, conditions, targetIsu.LastReadConditionTimestamps, requestTimeUnix)
 			if err != nil {
 				return []error{err}
 			}
@@ -617,11 +622,12 @@ func (s *Scenario) getIsuConditionUntilAlreadyRead(
 			conditions = conditions[:0]
 		}
 
+		requestTimeUnix = time.Now().Unix()
 		tmpConditions, hres, err := getIsuConditionAction(ctx, user.Agent, targetIsu.JIAIsuUUID, request)
 		if err != nil {
 			return nil, newLastReadConditionTimestamps, []error{err}
 		}
-		err = verifyIsuConditions(hres, user, targetIsu.JIAIsuUUID, &request, tmpConditions, targetIsu.LastReadConditionTimestamps)
+		err = verifyIsuConditions(hres, user, targetIsu.JIAIsuUUID, &request, tmpConditions, targetIsu.LastReadConditionTimestamps, requestTimeUnix)
 		if err != nil {
 			return nil, newLastReadConditionTimestamps, []error{err}
 		}
@@ -742,12 +748,13 @@ func (s *Scenario) requestGraphScenario(ctx context.Context, step *isucandar.Ben
 			EndTime:        (*nowViewingGraph)[checkHour].EndAt,
 			ConditionLevel: "info,warning,critical",
 		}
+		requestTimeUnix := time.Now().Unix()
 		conditions, hres, err := getIsuConditionAction(ctx, user.Agent, targetIsu.JIAIsuUUID, request)
 		if err != nil {
 			addErrorWithContext(ctx, step, err)
 			return false
 		}
-		err = verifyIsuConditions(hres, user, targetIsu.JIAIsuUUID, &request, conditions, targetIsu.LastReadConditionTimestamps)
+		err = verifyIsuConditions(hres, user, targetIsu.JIAIsuUUID, &request, conditions, targetIsu.LastReadConditionTimestamps, requestTimeUnix)
 		if err != nil {
 			addErrorWithContext(ctx, step, err)
 			return false
@@ -846,12 +853,12 @@ func getIsuGraphUntilLastViewed(
 	graph := []*service.GraphResponse{}
 
 	todayRequest := service.GetGraphRequest{Date: virtualDay}
+	requestTimeUnix := time.Now().Unix()
 	todayGraph, hres, err := getIsuGraphAction(ctx, user.Agent, targetIsu.JIAIsuUUID, todayRequest)
 	if err != nil {
 		return nil, []error{err}
 	}
-
-	err = verifyGraph(hres, user, targetIsu.JIAIsuUUID, &todayRequest, todayGraph)
+	err = verifyGraph(hres, user, targetIsu.JIAIsuUUID, &todayRequest, todayGraph, requestTimeUnix)
 	if err != nil {
 		return nil, []error{err}
 	}
@@ -868,12 +875,13 @@ func getIsuGraphUntilLastViewed(
 		}
 
 		request := service.GetGraphRequest{Date: virtualDay}
+		requestTimeUnix = time.Now().Unix()
 
 		tmpGraph, hres, err := getIsuGraphAction(ctx, user.Agent, targetIsu.JIAIsuUUID, request)
 		if err != nil {
 			return nil, []error{err}
 		}
-		err = verifyGraph(hres, user, targetIsu.JIAIsuUUID, &request, tmpGraph)
+		err = verifyGraph(hres, user, targetIsu.JIAIsuUUID, &request, tmpGraph, requestTimeUnix)
 		if err != nil {
 			return nil, []error{err}
 		}
@@ -931,17 +939,19 @@ func signoutScenario(ctx context.Context, step *isucandar.BenchmarkStep, user *m
 	// signout したらトップページに飛ぶ(MEMO: 初期状態だと trend おもすぎて backend をころしてしまうかも)
 	go func() {
 		// 登録済みユーザーは trend に興味はないので verify はせず投げっぱなし
-		if err := browserGetLandingPageIgnoreAction(ctx, user.Agent); err != nil {
-			addErrorWithContext(ctx, step, err)
+		if errs := browserGetLandingPageIgnoreAction(ctx, user); errs != nil {
+			for _, err := range errs {
+				addErrorWithContext(ctx, step, err)
+			}
 			// return するとこのあとのログイン必須なシナリオが回らないから return はしない
 		}
 	}()
 
-	authInfinityRetry(ctx, user.Agent, user.UserID, step)
+	authInfinityRetry(ctx, user, user.UserID, step)
 }
 
 // signoutScenario 以外からは呼ばない(シナリオループの最後である必要がある)
-func authInfinityRetry(ctx context.Context, a *agent.Agent, userID string, step *isucandar.BenchmarkStep) {
+func authInfinityRetry(ctx context.Context, user *model.User, userID string, step *isucandar.BenchmarkStep) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -949,14 +959,14 @@ func authInfinityRetry(ctx context.Context, a *agent.Agent, userID string, step 
 			return
 		default:
 		}
-		_, errs := authAction(ctx, a, userID)
+		_, errs := authAction(ctx, user, userID)
 		if len(errs) > 0 {
 			for _, err := range errs {
 				addErrorWithContext(ctx, step, err)
 			}
 			continue
 		}
-		me, hres, err := getMeAction(ctx, a)
+		me, hres, err := getMeAction(ctx, user.GetAgent())
 		if err != nil {
 			addErrorWithContext(ctx, step, err)
 			continue

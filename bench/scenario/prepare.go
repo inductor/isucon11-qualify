@@ -137,15 +137,15 @@ func (s *Scenario) prepareCheck(parent context.Context, step *isucandar.Benchmar
 	if err != nil {
 		logger.AdminLogger.Panicln(err)
 	}
-	_, errs := authAction(ctx, agt, isuconUser.UserID)
+	isuconUser.Agent = agt
+	_, errs := authAction(ctx, isuconUser, isuconUser.UserID)
 	for _, err := range errs {
 		step.AddError(err)
 		return nil
 	}
-	isuconUser.Agent = agt
 
 	// 各エンドポイントのチェック
-	s.prepareCheckAuth(ctx, isuconUser.UserID, step)
+	s.prepareCheckAuth(ctx, isuconUser, step)
 	s.prepareIrregularCheckPostSignout(ctx, step)
 	s.prepareIrregularCheckGetMe(ctx, guestAgent, step)
 	s.prepareIrregularCheckGetIsuList(ctx, s.noIsuUser, guestAgent, step)
@@ -197,7 +197,14 @@ func (s *Scenario) loadErrorCheck(ctx context.Context, step *isucandar.Benchmark
 		}
 		loginUserAgent.ClearCookie()
 		loginUserAgent.CacheStore.Clear()
-		authInfinityRetry(ctx, loginUserAgent, loginUser.UserID, step)
+
+		_, errs := authActionOnlyApi(ctx, loginUserAgent, loginUser.UserID)
+		if len(errs) != 0 {
+			for _, err := range errs {
+				addErrorWithContext(ctx, step, err)
+			}
+			continue
+		}
 
 		select {
 		case <-ctx.Done():
@@ -207,7 +214,7 @@ func (s *Scenario) loadErrorCheck(ctx context.Context, step *isucandar.Benchmark
 
 		time.Sleep(500 * time.Millisecond)
 
-		s.prepareCheckAuth(ctx, loginUser.UserID, step)
+		s.prepareCheckAuth(ctx, loginUser, step)
 		s.prepareIrregularCheckPostSignout(ctx, step)
 		s.prepareIrregularCheckGetMe(ctx, guestAgent, step)
 		s.prepareIrregularCheckGetIsuList(ctx, s.noIsuUser, guestAgent, step)
@@ -251,11 +258,13 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 		}
 		randomUser.Agent = agt
 		// check: ログイン成功
-		if err := BrowserAccess(ctx, agt, "/", TrendPage); err != nil {
-			step.AddError(err)
+		if errs := BrowserAccess(ctx, randomUser, "/", TrendPage); len(errs) != 0 {
+			for _, err := range errs {
+				step.AddError(err)
+			}
 			return
 		}
-		if _, errs := authAction(ctx, agt, randomUser.UserID); errs != nil {
+		if _, errs := authAction(ctx, randomUser, randomUser.UserID); len(errs) != 0 {
 			for _, err := range errs {
 				step.AddError(err)
 			}
@@ -278,8 +287,10 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 		}
 
 		// check: ISU一覧取得
-		if err := BrowserAccess(ctx, randomUser.Agent, "/", HomePage); err != nil {
-			step.AddError(err)
+		if errs := BrowserAccess(ctx, randomUser, "/", HomePage); len(errs) != 0 {
+			for _, err := range errs {
+				step.AddError(err)
+			}
 			return
 		}
 		isuList, res, err := getIsuAction(ctx, randomUser.Agent)
@@ -306,8 +317,10 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 			}
 			// check: ISU詳細取得
 			{
-				if err := BrowserAccess(ctx, randomUser.Agent, "/isu/"+jiaIsuUUID, IsuDetailPage); err != nil {
-					step.AddError(err)
+				if errs := BrowserAccess(ctx, randomUser, "/isu/"+jiaIsuUUID, IsuDetailPage); len(errs) != 0 {
+					for _, err := range errs {
+						step.AddError(err)
+					}
 					return
 				}
 				resIsu, res, err := getIsuIdAction(ctx, randomUser.Agent, jiaIsuUUID)
@@ -315,6 +328,7 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 					step.AddError(err)
 					return
 				}
+				isu.JIAIsuUUID = jiaIsuUUID
 				err = verifyIsu(res, isu, resIsu)
 				if err != nil {
 					step.AddError(err)
@@ -365,8 +379,10 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 					continue
 				}
 
-				if err := BrowserAccess(ctx, randomUser.Agent, "/isu/"+jiaIsuUUID+"/graph", IsuGraphPage); err != nil {
-					step.AddError(err)
+				if errs := BrowserAccess(ctx, randomUser, "/isu/"+jiaIsuUUID+"/graph", IsuGraphPage); len(errs) != 0 {
+					for _, err := range errs {
+						step.AddError(err)
+					}
 					return
 				}
 
@@ -417,8 +433,10 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 				}
 				isu.CondMutex.RUnlock()
 
-				if err := BrowserAccess(ctx, randomUser.Agent, "/isu/"+jiaIsuUUID+"/condition", IsuConditionPage); err != nil {
-					step.AddError(err)
+				if errs := BrowserAccess(ctx, randomUser, "/isu/"+jiaIsuUUID+"/condition", IsuConditionPage); len(errs) != 0 {
+					for _, err := range errs {
+						step.AddError(err)
+					}
 					return
 				}
 
@@ -463,8 +481,10 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 					ConditionLevel: "info,warning,critical",
 				}
 
-				if err := BrowserAccess(ctx, randomUser.Agent, "/isu/"+jiaIsuUUID+"/condition", IsuConditionPage); err != nil {
-					step.AddError(err)
+				if errs := BrowserAccess(ctx, randomUser, "/isu/"+jiaIsuUUID+"/condition", IsuConditionPage); len(errs) != 0 {
+					for _, err := range errs {
+						step.AddError(err)
+					}
 					return
 				}
 
@@ -512,8 +532,10 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 					ConditionLevel: levelQuery,
 				}
 
-				if err := BrowserAccess(ctx, randomUser.Agent, "/isu/"+jiaIsuUUID+"/condition", IsuConditionPage); err != nil {
-					step.AddError(err)
+				if errs := BrowserAccess(ctx, randomUser, "/isu/"+jiaIsuUUID+"/condition", IsuConditionPage); len(errs) != 0 {
+					for _, err := range errs {
+						step.AddError(err)
+					}
 					return
 				}
 
@@ -558,7 +580,7 @@ func (s *Scenario) prepareNormal(ctx context.Context, step *isucandar.BenchmarkS
 
 }
 
-func (s *Scenario) prepareCheckAuth(ctx context.Context, isuconUserID string, step *isucandar.BenchmarkStep) {
+func (s *Scenario) prepareCheckAuth(ctx context.Context, isuconUser *model.User, step *isucandar.BenchmarkStep) {
 	select {
 	case <-ctx.Done():
 		return
@@ -596,15 +618,15 @@ func (s *Scenario) prepareCheckAuth(ctx context.Context, isuconUserID string, st
 		logger.AdminLogger.Panic(err)
 		return
 	}
-	userID := isuconUserID
 
-	_, errs := authAction(ctx, agt, userID)
+	userID := isuconUser.UserID
+	_, errs := authActionOnlyApi(ctx, agt, userID)
 	for _, err := range errs {
 		step.AddError(err)
 	}
 	agt.ClearCookie()
 	//二回目のログイン
-	_, errs = authAction(ctx, agt, userID)
+	_, errs = authActionOnlyApi(ctx, agt, userID)
 	for _, err := range errs {
 		step.AddError(err)
 	}
@@ -663,8 +685,10 @@ func (s *Scenario) prepareIrregularCheckGetIsuList(ctx context.Context, noIsuUse
 	}
 
 	// check: 椅子未所持の場合は椅子が存在しない
-	if err := BrowserAccess(ctx, noIsuUser.Agent, "/", HomePage); err != nil {
-		step.AddError(err)
+	if errs := BrowserAccess(ctx, noIsuUser, "/", HomePage); len(errs) != 0 {
+		for _, err := range errs {
+			step.AddError(err)
+		}
 		return
 	}
 	isuList, res, err := getIsuAction(ctx, noIsuUser.Agent)
@@ -699,8 +723,10 @@ func (s *Scenario) prepareIrregularCheckGetIsuList(ctx context.Context, noIsuUse
 func (s *Scenario) prepareCheckPostIsu(ctx context.Context, loginUser *model.User, noIsuUser *model.User, guestAgent *agent.Agent, step *isucandar.BenchmarkStep) {
 	//Isuの登録 e.POST("/api/isu", postIsu)
 	// check: 椅子の登録が成功する（デフォルト画像）
-	if err := BrowserAccess(ctx, loginUser.Agent, "/register", RegisterPage); err != nil {
-		step.AddError(err)
+	if errs := BrowserAccess(ctx, loginUser, "/register", RegisterPage); len(errs) != 0 {
+		for _, err := range errs {
+			step.AddError(err)
+		}
 		return
 	}
 
@@ -741,8 +767,10 @@ func (s *Scenario) prepareCheckPostIsu(ctx context.Context, loginUser *model.Use
 	}
 
 	// check: 椅子の登録が成功する（画像あり）
-	if err := BrowserAccess(ctx, loginUser.Agent, "/register", RegisterPage); err != nil {
-		step.AddError(err)
+	if errs := BrowserAccess(ctx, loginUser, "/register", RegisterPage); len(errs) != 0 {
+		for _, err := range errs {
+			step.AddError(err)
+		}
 		return
 	}
 
@@ -1199,8 +1227,10 @@ func (s *Scenario) prepareStartInvalidIsuPost(ctx context.Context) (*model.Isu, 
 func (s *Scenario) prepareCheckPostIsuWithPrevCondition(ctx context.Context, loginUser *model.User, step *isucandar.BenchmarkStep, baseIsu *model.Isu) {
 	//Isuの登録 e.POST("/api/isu", postIsu)
 	// check: 事前にconditionがPOSTされた椅子の登録（正常に弾かれているかをチェックしたい）
-	if err := BrowserAccess(ctx, loginUser.Agent, "/register", RegisterPage); err != nil {
-		step.AddError(err)
+	if errs := BrowserAccess(ctx, loginUser, "/register", RegisterPage); len(errs) != 0 {
+		for _, err := range errs {
+			step.AddError(err)
+		}
 		return
 	}
 
