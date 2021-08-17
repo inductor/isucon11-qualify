@@ -10,6 +10,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/http"
 	"net/url"
@@ -473,20 +474,24 @@ func errorAssetChecksum(req *http.Request, res *http.Response, user AgentWithSta
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNotModified {
 		// cache の更新
-		body, err := io.ReadAll(res.Body)
+		hasher := crc32.New(crc32.IEEETable)
+		_, err := io.Copy(hasher, res.Body)
 		if err != nil {
 			return err
 		}
-		user.SetStaticCache(path, md5.Sum(body))
+		user.SetStaticCache(path, hasher.Sum32())
 	}
 
-	// md5でリソースの比較
+	// crc32でリソースの比較
 	expected := resourcesHash[path]
 	if expected == "" {
 		logger.AdminLogger.Panicf("意図していないpath(%s)のAssetResourceCheckを行っています。", path)
 	}
 	actualHash, exist := user.GetStaticCache(path, req)
 	if !exist {
+		if res.StatusCode != http.StatusNotModified {
+			logger.AdminLogger.Panic("static cacheがありません")
+		}
 		return errorCheckSum("304 StatusNotModified を返却していますが cache がありません: %s", path)
 	}
 	actual := fmt.Sprintf("%x", actualHash)
