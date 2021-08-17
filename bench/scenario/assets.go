@@ -5,19 +5,19 @@ var (
 	resourcesHash = map[string]string{ 
 		"/assets/favicon.d0f5f504.svg": "63f35b9a",
 		"/assets/index.48c3a998.css": "b569ef88",
-		"/assets/index.4dc6c34c.js": "fdc9fbcb",
+		"/assets/index.98041f41.js": "1b33be1d",
 		"/assets/logo_orange.974bf3e6.svg": "6c250f83",
 		"/assets/logo_white.98008342.svg": "61d68fa0",
-		"/assets/vendor.d1534efc.js": "3eef2b7",
-		"/index.html": "f5f09581",
+		"/assets/vendor.46946e6f.js": "6ab3edeb",
+		"/index.html": "68747f3b",
 	}
 	resourcesMap = map[string]string{ 
 		"/assets/favicon.svg": "/assets/favicon.d0f5f504.svg",
 		"/assets/index.css": "/assets/index.48c3a998.css",
-		"/assets/index.js": "/assets/index.4dc6c34c.js",
+		"/assets/index.js": "/assets/index.98041f41.js",
 		"/assets/logo_orange.svg": "/assets/logo_orange.974bf3e6.svg",
 		"/assets/logo_white.svg": "/assets/logo_white.98008342.svg",
-		"/assets/vendor.js": "/assets/vendor.d1534efc.js",
+		"/assets/vendor.js": "/assets/vendor.46946e6f.js",
 		"/index.html": "/index.html",
 	}
 )

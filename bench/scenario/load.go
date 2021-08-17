@@ -38,6 +38,8 @@ var (
 
 	// Viewer の制限
 	viewerLimiter chan struct{} = make(chan struct{})
+
+	userAdderIsDropped = make(chan struct{})
 )
 
 type ReadConditionCount struct {
@@ -69,7 +71,7 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 	// 実際の負荷走行シナリオ
 
 	//通常ユーザー
-	s.AddNormalUser(ctx, step, 1)
+	s.AddNormalUser(ctx, step, 6)
 	s.AddIsuconUser(ctx, step)
 
 	//非ログインユーザーを増やす
@@ -119,7 +121,10 @@ func (s *Scenario) Load(parent context.Context, step *isucandar.BenchmarkStep) e
 
 // UserLoop を増やすかどうか判定し、増やすなり減らす
 func (s *Scenario) userAdder(ctx context.Context, step *isucandar.BenchmarkStep) {
-	defer logger.AdminLogger.Println("--- userAdder END")
+	defer func() {
+		close(userAdderIsDropped)
+		logger.AdminLogger.Println("--- userAdder END")
+	}()
 	for {
 		select {
 		case <-time.After(5000 * time.Millisecond):
@@ -294,6 +299,8 @@ func (s *Scenario) loadViewer(ctx context.Context, step *isucandar.BenchmarkStep
 	select {
 	case <-ctx.Done():
 		return
+	case <-userAdderIsDropped:
+		return
 	case <-viewerLimiter:
 	}
 
@@ -302,11 +309,13 @@ func (s *Scenario) loadViewer(ctx context.Context, step *isucandar.BenchmarkStep
 	scenarioLoopStopper := time.After(1 * time.Millisecond) //ループ頻度調整
 	for {
 		<-scenarioLoopStopper
-		scenarioLoopStopper = time.After(10 * time.Millisecond)
+		scenarioLoopStopper = time.After(100 * time.Millisecond)
 
 		select {
 		case <-ctx.Done():
 			return
+		case <-userAdderIsDropped:
+			return //ユーザーが増えなくなったので脱落
 		default:
 		}
 
@@ -676,6 +685,12 @@ func (s *Scenario) requestGraphScenario(ctx context.Context, step *isucandar.Ben
 	// AddScoreはconditionのGETまで待つためここでタグを持っておく
 	scoreTags := []score.ScoreTag{}
 
+	// LastCompletedGraphTime を更新
+	newLastCompletedGraphTime := getNewLastCompletedGraphTime(graphResponses, virtualToday)
+	if targetIsu.LastCompletedGraphTime < newLastCompletedGraphTime {
+		targetIsu.LastCompletedGraphTime = newLastCompletedGraphTime
+	}
+
 	// scoreの計算
 	for behindDay, gr := range graphResponses {
 		minTimestampCount := int(^uint(0) >> 1)
@@ -688,13 +703,10 @@ func (s *Scenario) requestGraphScenario(ctx context.Context, step *isucandar.Ben
 				minTimestampCount = len(g.ConditionTimestamps)
 			}
 		}
-		// 「今日のグラフじゃない」＆「まだ見てないグラフ」なら加点
-		if behindDay != 0 && targetIsu.LastCompletedGraphTime <= virtualToday-(int64(behindDay)*OneDay) {
-			//「完成しているグラフ」なら加点
-			if 1 < behindDay || virtualToday+OneDay/2 < nowVirtualTime.Unix() {
-				// AddScoreはconditionのGETまで待つためここでタグを入れておく
-				scoreTags = append(scoreTags, getGraphScoreTag(minTimestampCount))
-			}
+		// 「今日のグラフじゃない」＆「まだ見ていない完成しているグラフ」なら加点( graphResponses がまだ見ていないグラフの集合なのは保証されている)
+		if behindDay != 0 && targetIsu.LastCompletedGraphTime >= virtualToday-(int64(behindDay)*OneDay) {
+			// AddScoreはconditionのGETまで待つためここでタグを入れておく
+			scoreTags = append(scoreTags, getGraphScoreTag(minTimestampCount))
 		}
 		// 「今日のグラフ」についても加点
 		if behindDay == 0 {
@@ -730,12 +742,6 @@ func (s *Scenario) requestGraphScenario(ctx context.Context, step *isucandar.Ben
 	// graph の加点分を計算
 	for _, scoreTag := range scoreTags {
 		step.AddScore(scoreTag)
-	}
-
-	// LastCompletedGraphTime を更新
-	newLastCompletedGraphTime := getNewLastCompletedGraphTime(graphResponses, virtualToday)
-	if targetIsu.LastCompletedGraphTime < newLastCompletedGraphTime {
-		targetIsu.LastCompletedGraphTime = newLastCompletedGraphTime
 	}
 
 	return true
