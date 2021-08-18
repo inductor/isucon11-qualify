@@ -60,7 +60,10 @@ func reqNoContentResNoContent(ctx context.Context, agent *agent.Agent, method st
 	if err != nil {
 		return nil, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	return httpres, nil
 }
@@ -75,7 +78,10 @@ func reqNoContentResError(ctx context.Context, agent *agent.Agent, method string
 	if err != nil {
 		return nil, "", err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	resBody, err := checkContentTypeAndGetBody(httpres, "text/plain")
 	if err != nil {
@@ -95,7 +101,10 @@ func reqNoContentResPng(ctx context.Context, agent *agent.Agent, method string, 
 	if err != nil {
 		return nil, nil, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	//ContentTypeのチェックは行わない
 	//resBody, err := checkContentTypeAndGetBody(httpres, "image/png")
@@ -123,7 +132,10 @@ func reqJSONResJSON(ctx context.Context, agent *agent.Agent, method string, rpat
 	if err != nil {
 		return nil, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	resBody, err := checkContentTypeAndGetBody(httpres, "application/json")
 	if err != nil {
@@ -148,7 +160,10 @@ func reqJSONResGojayArray(ctx context.Context, agent *agent.Agent, method string
 	if err != nil {
 		return nil, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	if !strings.HasPrefix(httpres.Header.Get("Content-Type"), "application/json") {
 		return nil, errorInvalidContentType(httpres, "application/json")
@@ -175,7 +190,10 @@ func reqJSONResTrend(ctx context.Context, agent *agent.Agent, method string, rpa
 	if err != nil {
 		return nil, nil, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	if !strings.HasPrefix(httpres.Header.Get("Content-Type"), "application/json") {
 		return nil, nil, errorInvalidContentType(httpres, "application/json")
@@ -204,7 +222,10 @@ func reqJSONResNoContent(ctx context.Context, agent *agent.Agent, method string,
 	if err != nil {
 		return nil, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	return httpres, nil
 }
@@ -240,7 +261,10 @@ func reqMultipartResJSON(ctx context.Context, agent *agent.Agent, method string,
 	if err != nil {
 		return httpres, err
 	}
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	resBody, err := checkContentTypeAndGetBody(httpres, "application/json")
 	if err != nil {
@@ -297,7 +321,10 @@ func doRequest(ctx context.Context, agent *agent.Agent, httpreq *http.Request, a
 }
 
 func checkContentTypeAndGetBody(httpres *http.Response, contentType string) ([]byte, error) {
-	defer httpres.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, httpres.Body)
+		httpres.Body.Close()
+	}()
 
 	if !strings.HasPrefix(httpres.Header.Get("Content-Type"), contentType) {
 		return nil, errorInvalidContentType(httpres, contentType)

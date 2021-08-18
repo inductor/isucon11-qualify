@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -89,7 +90,10 @@ func authAction(ctx context.Context, user *model.User, userID string) (*service.
 		errors = append(errors, err)
 		return nil, errors
 	}
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 
 	//httpリクエストの検証
 	authResponse := &service.AuthResponse{}
@@ -126,7 +130,10 @@ func authActionOnlyApi(ctx context.Context, a *agent.Agent, userID string) (*ser
 		errors = append(errors, err)
 		return nil, errors
 	}
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 
 	//httpリクエストの検証
 	authResponse := &service.AuthResponse{}
@@ -157,7 +164,10 @@ func authActionWithInvalidJWT(ctx context.Context, a *agent.Agent, invalidJWT st
 		errors = append(errors, err)
 		return errors
 	}
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 
 	//httpリクエストの検証
 	err = verifyStatusCode(res, expectedCode)
@@ -190,7 +200,10 @@ func authActionWithoutJWT(ctx context.Context, a *agent.Agent) []error {
 		errors = append(errors, err)
 		return errors
 	}
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 
 	//httpリクエストの検証
 	err = verifyStatusCode(res, http.StatusForbidden)
@@ -523,7 +536,10 @@ func postIsuConditionAction(ctx context.Context, httpClient http.Client, targetU
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 	return res, nil
 }
 
@@ -542,7 +558,10 @@ func postIsuConditionErrorAction(ctx context.Context, httpClient http.Client, ta
 	if err != nil {
 		return "", nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 
 	resBody, err := checkContentTypeAndGetBody(res, "text/plain")
 	if err != nil {

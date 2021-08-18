@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -471,7 +472,10 @@ func errorAssetChecksum(req *http.Request, res *http.Response, user AgentWithSta
 		return err
 	}
 
-	defer res.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, res.Body)
+		res.Body.Close()
+	}()
 	if res.StatusCode != http.StatusNotModified {
 		// cache の更新
 		hasher := crc32.New(crc32.IEEETable)
